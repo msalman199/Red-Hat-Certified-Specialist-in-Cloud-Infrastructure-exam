@@ -1,0 +1,112 @@
+Lab 5: Monitor and Maintain Control Plane Health
+Objectives
+By the end of this lab, you will be able to:
+
+Monitor control plane services using open-source tools (Prometheus, Grafana, and Alertmanager)
+Perform a rolling upgrade of a control plane service (using Kubernetes as an example)
+Troubleshoot common control plane issues (API server unavailability, etcd failures, and resource constraints)
+Prerequisites
+A Linux-based system (Ubuntu 20.04/22.04 recommended)
+Basic understanding of Kubernetes/OpenShift control plane components
+Administrative access to a Kubernetes cluster (Minikube, Kind, or OpenShift)
+Docker/Podman installed (for container management)
+kubectl or oc CLI installed
+Helm installed (for deploying monitoring tools)
+Task 1: Monitor Control Plane Services Using Open-Source Tools
+Subtask 1.1: Deploy Prometheus and Grafana for Monitoring
+Install Helm (if not already installed):
+
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+Add Prometheus Helm repository:
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+Install Prometheus Stack (includes Grafana):
+
+helm install prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
+Verify installation:
+
+kubectl get pods -n monitoring
+Expected Output:
+All pods should be in Running state.
+
+Access Grafana Dashboard:
+
+kubectl port-forward svc/prometheus-stack-grafana -n monitoring 3000:80
+Open http://localhost:3000 in a browser.
+Default credentials: admin/prom-operator.
+Subtask 1.2: Configure Alerts for Control Plane Health
+Check Prometheus Alerts:
+
+kubectl port-forward svc/prometheus-stack-kube-prom-prometheus -n monitoring 9090:9090
+Open http://localhost:9090/alerts to see pre-configured Kubernetes alerts.
+Create a Custom Alert for API Server Downtime:
+
+Edit prometheus-custom-rules.yaml:
+groups:
+- name: control-plane-health
+  rules:
+  - alert: KubeAPIDown
+    expr: up{job="apiserver"} == 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Kubernetes API server is down"
+      description: "API server has been unreachable for 5 minutes."
+Apply the rule:
+kubectl create configmap custom-rules --from-file=prometheus-custom-rules.yaml -n monitoring
+kubectl label configmap custom-rules app.kubernetes.io/name=kube-prometheus-stack -n monitoring
+Task 2: Perform a Rolling Upgrade of a Control Plane Service (Kube-Proxy Example)
+Subtask 2.1: Check Current Kube-Proxy Version
+List DaemonSets (Kube-Proxy runs as a DaemonSet):
+
+kubectl get daemonsets -n kube-system
+Check current image version:
+
+kubectl describe daemonset kube-proxy -n kube-system | grep Image
+Subtask 2.2: Upgrade Kube-Proxy
+Edit DaemonSet to use a newer version:
+
+kubectl edit daemonset kube-proxy -n kube-system
+Change image: k8s.gcr.io/kube-proxy:v1.XX.X to a newer version (e.g., v1.28.0).
+Verify rolling update:
+
+kubectl rollout status daemonset/kube-proxy -n kube-system
+Expected Output:
+daemon set "kube-proxy" successfully rolled out
+
+Task 3: Troubleshoot Common Control Plane Issues
+Subtask 3.1: Diagnose API Server Unavailability
+Check API Server Logs:
+
+kubectl logs -n kube-system kube-apiserver-<node-name>
+Test API Server:
+
+curl -k https://<API_SERVER_IP>:6443/healthz
+Expected Output:
+ok
+
+Subtask 3.2: Resolve etcd Cluster Issues
+Check etcd Health:
+
+kubectl get pods -n kube-system | grep etcd
+kubectl exec -it etcd-<pod-name> -n kube-system -- etcdctl endpoint health
+Fix etcd Quorum Loss (if needed):
+
+kubectl exec -it etcd-<pod-name> -n kube-system -- etcdctl member list
+Conclusion
+In this lab, you learned how to:
+
+Monitor control plane health using Prometheus, Grafana, and Alertmanager.
+Perform a rolling upgrade of a control plane service (kube-proxy).
+Troubleshoot common control plane issues (API server, etcd).
+Next Steps
+Explore OpenShift-specific monitoring with OpenShift Monitoring Stack.
+Practice node-level troubleshooting with journalctl and crictl.
+Troubleshooting Tips
+If Grafana is not loading, check if the prometheus-stack-grafana service is running.
+If kubectl commands fail, verify kubeconfig permissions.
+For etcd issues, ensure odd-numbered cluster size for quorum.
