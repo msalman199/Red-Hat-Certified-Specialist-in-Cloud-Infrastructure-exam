@@ -1,0 +1,107 @@
+Lab 8: Deploying and Managing Custom Images in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Upload custom VM images to OpenStack Glance.
+Use cloud-init for post-launch instance customization.
+Create and manage image snapshots and versions.
+Prerequisites
+An active OpenStack environment with admin/user access.
+OpenStack CLI (openstack client) installed and configured.
+A Linux-based custom image (e.g., QCOW2 format) for testing.
+Basic familiarity with Linux command line and OpenStack concepts.
+Task 1: Upload Custom VM Images to Glance
+Subtask 1.1: Prepare a Custom Image
+Download a cloud-ready QCOW2 image (e.g., CentOS or Ubuntu cloud image):
+
+wget https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+Replace the URL with the latest preferred image.
+Verify the image file:
+
+file CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+Expected Output:
+CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2: QEMU QCOW2 Image (v3), ...
+
+Subtask 1.2: Upload Image to Glance
+Upload the image using the OpenStack CLI:
+
+openstack image create "CentOS-9-Stream" \
+  --file CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2 \
+  --disk-format qcow2 \
+  --container-format bare \
+  --public
+--public makes the image available to all projects (admin-only). Omit for private images.
+Verify the upload:
+
+openstack image list
+Expected Outcome:
+The image appears in the list with status active.
+
+Troubleshooting Tip:
+If the image status is queued or error, check disk format compatibility and Glance service logs.
+
+Task 2: Use cloud-init for Post-Launch Customization
+Subtask 2.1: Create a cloud-init Configuration File
+Create a user-data file for initialization (e.g., cloud-init-config.yaml):
+#cloud-config
+hostname: mycustomvm
+users:
+  - name: demouser
+    groups: sudo
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh-authorized-keys:
+      - ssh-rsa AAAAB3Nz... (your public key)
+Replace the SSH key with your own.
+Subtask 2.2: Launch an Instance with cloud-init
+Launch an instance with the uploaded imageanduser-data`:
+
+openstack server create --image CentOS-9-Stream \
+  --flavor m1.small \
+  --network private-net \
+  --user-data cloud-init-config.yaml \
+  my-custom-vm
+Verify initialization:
+
+openstack console log show my-custom-vm | grep "cloud-init"
+Expected Outcome:
+Logs show successful cloud-init execution (e.g., "Configuring ssh authorized keys").
+
+Key Concept:
+cloud-init automates hostname, user creation, and SSH key injection during boot.
+
+Task 3: Create and Manage Image Snapshots and Versions
+Subtask 3.1: Create a Snapshot from a Running Instance
+Stop the instance (snapshots require a stopped VM for consistency):
+
+openstack server stop my-custom-vm
+Create a snapshot:
+
+openstack server image create --name "snapshot-1" my-custom-vm
+Verify the snapshot:
+
+openstack image list --name "snapshot-1"
+Subtask 3.2: Manage Image Versions
+Upload a new version of the image (e.g., updated CentOS):
+
+openstack image create "CentOS-9-Stream-v2" \
+  --file /path/to/updated-image.qcow2 \
+  --disk-format qcow2
+Deprecate the old image:
+
+openstack image set --property deprecation_reason="Replaced by v2" \
+  --property deprecated=True CentOS-9-Stream
+Expected Outcome:
+The new image is active, and the old one is marked deprecated.
+
+Conclusion
+In this lab, you:
+
+Uploaded a custom QCOW2 image to Glance.
+Deployed an instance with cloud-init for automated configuration.
+Created snapshots and managed image versions.
+Next Steps:
+Explore OpenStack Heat for orchestration or integrate image management with CI/CD pipelines.
+
+Final Verification:
+Run openstack image list and openstack server list to confirm all resources are correctly provisioned.
