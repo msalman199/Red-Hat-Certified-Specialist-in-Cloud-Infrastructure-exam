@@ -1,0 +1,99 @@
+Lab 6: Managing Infrastructure Security in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Secure OpenStack component files with proper permissions
+Implement TLS encryption for service communication
+Audit OpenStack services for security compliance
+Prerequisites
+Running OpenStack deployment (minimum: Keystone, Nova, Glance)
+sudo/root access to controller and compute nodes
+Basic Linux command line proficiency
+OpenSSL package installed
+OpenStack CLI tools installed (python-openstackclient)
+Task 1: Securing Service Component Files
+Subtask 1.1: Verify Current File Permissions
+Check current permissions on critical OpenStack configuration files:
+ls -l /etc/keystone/keystone.conf
+ls -l /etc/nova/nova.conf
+ls -l /etc/glance/glance-api.conf
+Expected Output:
+-rw-r----- 1 root keystone 1234 Jun 1 10:00 /etc/keystone/keystone.conf
+
+Subtask 1.2: Set Proper Permissions
+Set restrictive permissions (owner: root, group: service, mode: 640):
+sudo chown root:keystone /etc/keystone/keystone.conf
+sudo chmod 640 /etc/keystone/keystone.conf
+
+sudo chown root:nova /etc/nova/nova.conf
+sudo chmod 640 /etc/nova/nova.conf
+Verify changes:
+stat -c "%a %U %G" /etc/keystone/keystone.conf
+Expected Output:
+640 root keystone
+
+Troubleshooting:
+If services fail after permission changes, verify service logs (journalctl -u keystone)
+
+Task 2: Implementing TLS Encryption
+Subtask 2.1: Generate SSL Certificates
+Create Certificate Authority (CA):
+openssl genrsa -out ca.key 4096
+openssl req -new -x509 -days 365 -key ca.key -out ca.crt
+Generate server certificate:
+openssl genrsa -out server.key 2048
+openssl req -new -key server.key -out server.csr
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365
+Subtask 2.2: Configure Keystone for HTTPS
+Edit /etc/keystone/keystone.conf:
+[ssl]
+enable = True
+certfile = /etc/keystone/ssl/certs/server.crt
+keyfile = /etc/keystone/ssl/private/server.key
+ca_certs = /etc/keystone/ssl/certs/ca.crt
+Restart Keystone:
+sudo systemctl restart apache2
+Verification:
+
+curl -v https://<controller-ip>:5000
+Expected Output:
+Should show TLS handshake success without certificate warnings
+
+Task 3: Security Auditing
+Subtask 3.1: Install OpenStack Auditing Tools
+Install openstack-ansible-security:
+sudo apt install git
+git clone https://opendev.org/openstack/openstack-ansible-security
+cd openstack-ansible-security
+Subtask 3.2: Run Security Audit
+Execute the audit playbook:
+ansible-playbook playbooks/security-hardening.yml
+Review findings in /var/log/openstack_audit/
+Key Findings to Check:
+
+Unencrypted communication channels
+Overly permissive file permissions
+Default credentials in use
+Subtask 3.3: Remediate Findings
+Example remediation for password policy:
+openstack domain set --password-policy min_password_length=12 default
+Conclusion
+In this lab, you have:
+
+Secured OpenStack configuration files with proper ownership and permissions
+Implemented TLS encryption for service communication
+Performed security auditing and basic remediation
+Next Steps:
+
+Schedule regular security audits
+Monitor OpenStack CVE announcements
+Implement centralized logging for security events
+Final Verification:
+
+openstack --insecure service list
+(Should show all services active without SSL errors)
+
+Additional Resources
+OpenStack Security Guide
+Mozilla SSL Configuration Generator
+OpenStack Hardening Guide
