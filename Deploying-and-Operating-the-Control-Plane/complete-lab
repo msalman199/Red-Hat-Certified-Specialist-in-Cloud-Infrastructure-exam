@@ -1,0 +1,146 @@
+Lab 4: Deploying and Operating the Control Plane
+Objectives
+Deploy OpenStack control plane services (Keystone, Glance, Nova, Neutron)
+Monitor and verify control plane functionality
+Configure access and roles for different users
+Prerequisites
+Ubuntu 22.04 LTS server with:
+Minimum 8GB RAM
+4 vCPUs
+50GB disk space
+Root/sudo access
+Basic Linux command line knowledge
+Internet connection
+Lab Setup
+Update system packages:
+sudo apt update && sudo apt upgrade -y
+Install OpenStack client:
+sudo apt install -y python3-openstackclient
+Task 1: Install and Configure Control Plane Services
+Subtask 1.1: Install and Configure Keystone (Identity Service)
+Install Keystone packages:
+sudo apt install -y keystone apache2 libapache2-mod-wsgi-py3
+Configure Keystone database:
+sudo mysql -e "CREATE DATABASE keystone"
+sudo mysql -e "GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'KEYSTONE_DBPASS'"
+Edit Keystone configuration:
+sudo vi /etc/keystone/keystone.conf
+Add/modify these sections:
+
+[database]
+connection = mysql+pymysql://keystone:KEYSTONE_DBPASS@localhost/keystone
+
+[token]
+provider = fernet
+Populate Keystone database:
+sudo su -s /bin/sh -c "keystone-manage db_sync" keystone
+Initialize Fernet keys:
+sudo keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+Expected Outcome: Keystone service installed and database initialized.
+
+Subtask 1.2: Install and Configure Glance (Image Service)
+Install Glance packages:
+sudo apt install -y glance
+Configure Glance database:
+sudo mysql -e "CREATE DATABASE glance"
+sudo mysql -e "GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'localhost' IDENTIFIED BY 'GLANCE_DBPASS'"
+Edit Glance configuration:
+sudo vi /etc/glance/glance-api.conf
+Add/modify:
+
+[database]
+connection = mysql+pymysql://glance:GLANCE_DBPASS@localhost/glance
+
+[keystone_authtoken]
+www_authenticate_uri = http://localhost:5000
+auth_url = http://localhost:5000
+memcached_servers = localhost:11211
+auth_type = password
+project_domain_name = Default
+user_domain_name = Default
+project_name = service
+username = glance
+password = GLANCE_PASS
+
+[paste_deploy]
+flavor = keystone
+Populate Glance database:
+sudo su -s /bin/sh -c "glance-manage db_sync" glance
+Expected Outcome: Glance service installed and ready for image management.
+
+Subtask 1.3: Install and Configure Nova (Compute Service)
+Install Nova packages:
+sudo apt install -y nova-api nova-conductor nova-scheduler
+Configure Nova database:
+sudo mysql -e "CREATE DATABASE nova_api"
+sudo mysql -e "CREATE DATABASE nova"
+sudo mysql -e "GRANT ALL PRIVILEGES ON nova_api.* TO 'nova'@'localhost' IDENTIFIED BY 'NOVA_DBPASS'"
+sudo mysql -e "GRANT ALL PRIVILEGES ON nova.* TO 'nova'@'localhost' IDENTIFIED BY 'NOVA_DBPASS'"
+Edit Nova configuration:
+sudo vi /etc/nova/nova.conf
+Add/modify:
+
+[api_database]
+connection = mysql+pymysql://nova:NOVA_DBPASS@localhost/nova_api
+
+[database]
+connection = mysql+pymysql://nova:NOVA_DBPASS@localhost/nova
+
+[api]
+auth_strategy = keystone
+
+[keystone_authtoken]
+www_authenticate_uri = http://localhost:5000
+auth_url = http://localhost:5000
+memcached_servers = localhost:11211
+auth_type = password
+project_domain_name = Default
+user_domain_name = Default
+project_name = service
+username = nova
+password = NOVA_PASS
+Populate Nova databases:
+sudo su -s /bin/sh -c "nova-manage api_db sync" nova
+sudo su -s /bin/sh -c "nova-manage db sync" nova
+Expected Outcome: Nova services installed and ready to manage compute resources.
+
+Task 2: Monitor and Verify Control Plane
+Subtask 2.1: Verify Service Status
+Check service status:
+sudo systemctl list-units | grep -e keystone -e glance -e nova
+Verify Keystone endpoint:
+openstack catalog list
+Check Glance functionality:
+openstack image list
+Expected Outcome: All services should show as active and respond to API calls.
+
+Task 3: Configure Access and Roles
+Subtask 3.1: Create Projects and Users
+Create admin project:
+openstack project create --domain default --description "Admin Project" admin
+Create admin user:
+openstack user create --domain default --password ADMIN_PASS admin
+Create admin role:
+openstack role create admin
+Assign role to user:
+openstack role add --project admin --user admin admin
+Expected Outcome: New admin user created with proper privileges.
+
+Conclusion
+In this lab, you have:
+
+Successfully deployed OpenStack control plane services (Keystone, Glance, Nova)
+Verified the functionality of all services
+Configured proper access control for administrative users
+The control plane is now ready for further OpenStack deployment and management tasks.
+
+Troubleshooting Tips
+If services fail to start, check logs:
+journalctl -u <service_name> -xe
+Verify database connections if services don't respond
+Ensure all passwords match between configuration files
+Check firewall settings if API endpoints are inaccessible
+Next Steps
+Deploy compute nodes
+Configure networking services
+Launch your first instance
