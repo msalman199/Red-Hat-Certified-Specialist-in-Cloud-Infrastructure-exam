@@ -1,0 +1,95 @@
+Time Spent Today:
+1h 42m
+
+Start Lab
+Connect
+Delete Lab
+SSH Access
+
+Video
+Lab Material
+Lab 2. Overcloud Architecture Overview
+Objectives
+By the end of this lab, you will:
+
+Understand the role and components of the overcloud in OpenStack.
+Deploy and configure a basic overcloud environment.
+Identify key components such as controller nodes, compute nodes, and network nodes.
+Learn how the overcloud supports multi-tenancy.
+Prerequisites
+Before starting, ensure you have:
+
+A machine with Red Hat Enterprise Linux (RHEL) 8/9 or CentOS Stream 8/9 installed.
+OpenStack CLI tools (openstack-client) installed.
+Podman installed (for containerized OpenStack services).
+Sufficient system resources (at least 16GB RAM, 4 vCPUs, 50GB disk).
+A working undercloud deployment (if following OpenStack TripleO methodology).
+Lab Tasks
+Task 1: Deploy and Configure the Overcloud
+Subtask 1.1: Prepare the Overcloud Deployment Files
+Create a deployment directory:
+mkdir ~/overcloud-deploy && cd ~/overcloud-deploy
+Generate a basic overcloud configuration template (using TripleO):
+openstack overcloud deploy --templates \
+--ntp-server pool.ntp.org \
+--control-scale 1 \
+--compute-scale 1 \
+--network-scale 1
+Expected Outcome: A deployment plan (overcloud.yaml) is generated.
+Subtask 1.2: Deploy the Overcloud
+Execute the deployment:
+openstack overcloud deploy --templates \
+--stack overcloud \
+--libvirt-type kvm \
+--overcloud-ssh-user heat-admin
+Troubleshooting Tip: If deployment fails, check logs in /var/log/heat/.
+Subtask 1.3: Verify Deployment
+Check the stack status:
+openstack stack list
+Expected Outcome: The overcloud stack should be in CREATE_COMPLETE state.
+Task 2: Identify Key Overcloud Components
+Subtask 2.1: List Overcloud Nodes
+Retrieve node details:
+openstack server list
+Expected Outcome: Lists controller, compute, and network nodes.
+Subtask 2.2: Access Controller Node
+SSH into the controller node:
+ssh heat-admin@<controller-ip>
+Verify OpenStack services:
+sudo podman ps
+Expected Outcome: Running containers for Nova, Neutron, Keystone, etc.
+Subtask 2.3: Inspect Compute Node
+SSH into a compute node:
+ssh heat-admin@<compute-ip>
+Check hypervisor status:
+sudo podman exec -it nova_compute virsh list --all
+Expected Outcome: Lists virtual machines (if any).
+Task 3: Understand Multi-Tenancy in Overcloud
+Subtask 3.1: Create Tenants (Projects)
+Create two test tenants:
+openstack project create tenant1
+openstack project create tenant2
+Subtask 3.2: Assign Users to Tenants
+Create users and assign roles:
+openstack user create --project tenant1 user1
+openstack role add --user user1 --project tenant1 member
+Subtask 3.3: Verify Isolation
+As user1, list resources (ensure no access to tenant2):
+OS_USERNAME=user1 OS_PASSWORD=password OS_PROJECT_NAME=tenant1 \
+openstack server list
+Expected Outcome: Empty list (unless resources are explicitly shared).
+Conclusion
+In this lab, you:
+✔ Deployed and configured an OpenStack overcloud.
+✔ Identified controller, compute, and network nodes.
+✔ Explored multi-tenancy by creating isolated projects.
+
+Next Steps
+Explore advanced networking (OVS vs OVN).
+Learn storage integration (Ceph for block storage).
+Troubleshooting Tips
+If deployment fails, check:
+journalctl -u openstack-tripleo -f
+For connectivity issues, verify Neutron agents:
+openstack network agent list
+Lab Complete! 🎉 Proceed to the next module for advanced OpenStack configurations.**
