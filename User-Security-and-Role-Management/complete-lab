@@ -1,0 +1,81 @@
+Lab 7: User Security and Role Management in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Configure user domains and identities in OpenStack using Keystone.
+Assign scoped roles (admin/member) to users.
+Test security policies and access controls for different user roles.
+Prerequisites
+OpenStack Environment: A working OpenStack deployment with Keystone (Identity Service) installed.
+Command Line Access: SSH access to the OpenStack controller node.
+Admin Credentials: Admin username and password for OpenStack.
+OpenStack CLI Tools: Installed and configured (openstack command available).
+Lab Tasks
+Task 1: Create and Manage User Domains
+Subtask 1.1: Create a New Domain
+Log in to the OpenStack controller node via SSH.
+Source the admin OpenRC file to gain admin privileges:
+source admin-openrc.sh
+Create a new domain named lab_domain:
+openstack domain create --description "Lab Domain" lab_domain
+Expected Output:
++-------------+----------------------------------+
+| Field         | Value                            |
++-------------+----------------------------------+
+| description  | Lab Domain                       |
+| enabled      | True                             |
+| id           | [DOMAIN_ID]                      |
+| name         | lab_domain                       |
++-------------+----------------------------------+
+Subtask 1.2: List and Verify Domains
+List all domains to verify the creation:
+openstack domain list
+Expected Outcome:
+The output should include lab_domain in the list.
+Task 2: Assign Scoped Roles to Users
+Subtask 2.1: Create a New User
+Create a user lab_user in lab_domain:
+openstack user create --domain lab_domain --password-prompt lab_user
+Note: You will be prompted to set a password for the user.
+Subtask 2.2: Assign Admin and Member Roles
+Assign the admin role to lab_user in the lab_domain:
+
+openstack role add --domain lab_domain --user lab_user admin
+Verify the role assignment:
+
+openstack role assignment list --user lab_user --domain lab_domain
+Expected Outcome:
+The output should show admin role assigned to lab_user.
+
+Repeat the process to assign the member role:
+
+openstack role add --domain lab_domain --user lab_user member
+Task 3: Configure and Test Security Policies
+Subtask 3.1: Test Admin Access
+Switch to the lab_user context:
+source lab_user-openrc.sh
+Attempt to list all projects (admin-only action):
+openstack project list
+Expected Outcome:
+The command should succeed if lab_user has the admin role.
+Subtask 3.2: Test Member Access
+Remove the admin role temporarily:
+openstack role remove --domain lab_domain --user lab_user admin
+Retry listing projects:
+openstack project list
+Expected Outcome:
+The command should fail with a 403 Forbidden error, indicating restricted access.
+Troubleshooting Tips
+Permission Denied: Ensure the user has the correct role assignments and the domain is properly configured.
+Command Not Found: Verify OpenStack CLI tools are installed (pip install python-openstackclient).
+Authentication Errors: Double-check credentials in the OpenRC file.
+Conclusion
+In this lab, you learned how to:
+
+Create and manage user domains in OpenStack.
+Assign and verify scoped roles (admin/member) to users.
+Test security policies to enforce access controls.
+These skills are essential for managing multi-tenant environments and ensuring proper role-based access in OpenStack deployments.
+
+
+This lab provides a structured, hands-on approach to OpenStack user security and role management while adhering to open-source tools and modern practices. Let me know if you'd like any refinements!
