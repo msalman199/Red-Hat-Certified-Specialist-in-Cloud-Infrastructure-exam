@@ -1,0 +1,89 @@
+Lab 13: Compute Node Operations in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Install and configure Nova compute services on a node.
+Manage the lifecycle of instances (VMs) on compute nodes.
+Monitor resource utilization on compute nodes.
+Prerequisites
+A running OpenStack environment (e.g., DevStack or manually deployed OpenStack).
+SSH access to the compute node(s).
+Basic familiarity with Linux command line and OpenStack CLI.
+Python 3.x installed.
+Task 1: Install and Configure Nova Compute Services
+Subtask 1.1: Install Nova Compute Service
+SSH into the compute node:
+ssh username@compute_node_ip
+Update the system and install Nova compute packages:
+sudo apt update && sudo apt upgrade -y
+sudo apt install nova-compute -y
+Verify the installation:
+nova-compute --version
+Expected Output: Version number of Nova compute (e.g., 23.0.0).
+Subtask 1.2: Configure Nova Compute
+Edit the Nova configuration file:
+sudo nano /etc/nova/nova.conf
+Update the following sections:
+[DEFAULT]
+compute_driver = libvirt.LibvirtDriver
+[libvirt]
+virt_type = kvm
+Restart Nova services:
+sudo systemctl restart nova-compute
+sudo systemctl enable nova-compute
+Verify service status:
+sudo systemctl status nova-compute
+Expected Output: active (running).
+Task 2: Manage Instance Lifecycle on Compute Nodes
+Subtask 2.1: Launch an Instance
+Source OpenStack credentials:
+source ~/openrc
+Create a test instance:
+openstack server create --flavor m1.small --image cirros --network private test-instance
+Check instance status:
+openstack server list
+Expected Output: test-instance should be in ACTIVE state.
+Subtask 2.2: Stop and Start an Instance
+Stop the instance:
+openstack server stop test-instance
+Verify shutdown:
+openstack server list
+Expected Output: test-instance should be in SHUTOFF state.
+Start the instance again:
+openstack server start test-instance
+Expected Output: Instance returns to ACTIVE state.
+Subtask 2.3: Delete an Instance
+Terminate the instance:
+openstack server delete test-instance
+Verify deletion:
+openstack server list
+Expected Output: test-instance should no longer appear.
+Task 3: Monitor Resource Utilization
+Subtask 3.1: Check Compute Node Resources
+View compute node stats:
+openstack compute service list
+Expected Output: Lists all compute nodes with status (up or down).
+Check resource usage:
+openstack hypervisor stats show
+Expected Output: Displays CPU, RAM, and disk usage.
+Subtask 3.2: Monitor Instance Performance
+List all instances on the compute node:
+openstack server list --host compute_node_name
+Check CPU and memory usage per instance:
+openstack server show test-instance -f json | grep -E "cpu|memory"
+Expected Output: Displays allocated CPU and memory.
+Conclusion
+In this lab, you:
+✔ Installed and configured Nova compute services.
+✔ Managed the lifecycle of instances (launch, stopping, starting, deleting).
+✔ Monitored compute node resource utilization.
+
+By completing these tasks, you now have hands-on experience in managing OpenStack compute nodes effectively.
+
+Troubleshooting Tips
+If Nova services fail to start, check logs:
+journalctl -u nova-compute -f
+If instances fail to launch, verify network and image availability.
+Ensure KVM is supported on the host:
+egrep -c '(vmx|svm)' /proc/cpuinfo
+(Output should be > 0).
