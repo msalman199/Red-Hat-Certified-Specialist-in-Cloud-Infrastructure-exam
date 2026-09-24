@@ -1,0 +1,187 @@
+Lab 20: Deploying Scalable Applications with OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Deploy scalable applications using OpenStack Heat (Orchestration Service)
+Configure autoscaling policies for dynamic workload management
+Deploy a multi-tier application with scaling and monitoring capabilities
+Prerequisites
+Before starting this lab, ensure you have:
+
+Access to an OpenStack cloud environment with admin privileges
+OpenStack CLI tools installed (openstack, heat)
+Basic understanding of YAML syntax
+Familiarity with OpenStack core services (Nova, Neutron, Heat, Ceilometer)
+Lab Setup
+Install OpenStack CLI tools if not already present:
+sudo apt-get install python3-openstackclient python3-heatclient
+Source your OpenStack RC file to authenticate:
+source ~/openrc.sh
+Task 1: Using Heat for Scalable Deployment
+Subtask 1.1: Create a Basic Heat Template
+Create a new file named basic_stack.yaml with the following content:
+heat_template_version: 2018-08-31
+
+description: Basic scalable web server deployment
+
+resources:
+  web_server:
+    type: OS::Nova::Server
+    properties:
+      name: web_server
+      image: cirros
+      flavor: m1.small
+      networks:
+        - network: private
+Deploy the stack:
+openstack stack create -t basic_stack.yaml basic_stack
+Expected Outcome: A new stack named basic_stack will be created with a single web server instance.
+
+Subtask 1.2: Verify Stack Deployment
+Check stack status:
+openstack stack list
+View stack resources:
+openstack stack resource list basic_stack
+Troubleshooting Tip: If the stack fails, check logs with:
+
+openstack stack event list basic_stack
+Task 2: Configure Autoscaling Policies
+Subtask 2.1: Create Autoscaling Template
+Create a new file autoscale_stack.yaml with scaling configuration:
+heat_template_version: 2018-08-31
+
+description: Autoscaling web application
+
+resources:
+  server_group:
+    type: OS::Nova::ServerGroup
+    properties:
+      name: web_servers
+      policies: [anti-affinity]
+
+  scaling_group:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 1
+      max_size: 3
+      resource:
+        type: OS::Nova::Server
+        properties:
+          name: web_server_%index%
+          image: cirros
+          flavor: m1.small
+          networks:
+            - network: private
+          user_data: |
+            #!/bin/sh
+            echo "Web server ready" > /tmp/ready
+
+  scale_up_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: scaling_group }
+      cooldown: 60
+      scaling_adjustment: 1
+
+  scale_down_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: scaling_group }
+      cooldown: 60
+      scaling_adjustment: -1
+Subtask 2.2: Deploy Autoscaling Stack
+Launch the autoscaling stack:
+openstack stack create -t autoscale_stack.yaml autoscale_stack
+Monitor the group scaling:
+watch -n 5 openstack stack resource list autoscale_stack
+Key Concept: The cooldown period prevents rapid scaling fluctuations by enforcing a wait time between scaling actions.
+
+Task 3: Deploy Multi-Tier Application with Scaling
+Subtask 3.1: Create Multi-Tier Template
+Create multi_tier_stack.yaml with web and database tiers:
+heat_template_version: 2018-08-31
+
+description: Multi-tier application with scaling
+
+resources:
+  database:
+    type: OS::Trove::Instance
+    properties:
+      name: app_db
+      datastore_type: mysql
+      flavor: m1.small
+      volume: { size: 10 }
+
+  web_servers:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 2
+      max_size: 5
+      resource:
+        type: OS::Nova::Server
+        properties:
+          name: web_node_%index%
+          image: ubuntu-latest
+          flavor: m1.small
+          networks:
+            - network: private
+          user_data:
+            str_replace:
+              template: |
+                #!/bin/bash
+                apt-get update
+                apt-get install -y apache2
+                echo "Connected to DB: $DB_ENDPOINT" > /var/www/html/index.html
+              params:
+                $DB_ENDPOINT: { get_attr: [database, host] }
+
+  web_alarm_high:
+    type: OS::Ceilometer::Alarm
+    properties:
+      meter_name: cpu_util
+      statistic: avg
+      period: 60
+      evaluation_periods: 2
+      threshold: 70
+      comparison_operator: gt
+      alarm_actions:
+        - { get_attr: [scale_up_policy, alarm_url] }
+
+  web_alarm_low:
+    type: OS::Ceilometer::Alarm
+    properties:
+      meter_name: cpu_util
+      statistic: avg
+      period: 300
+      evaluation_periods: 2
+      threshold: 30
+      comparison_operator: lt
+      alarm_actions:
+        - { get_attr: [scale_down_policy, alarm_url] }
+Subtask 3.2: Deploy and Monitor
+Launch the multi-tier stack:
+openstack stack create -t multi_tier_stack.yaml app_stack
+Check resource creation:
+openstack server list
+openstack database instance list
+Monitor scaling alarms:
+openstack alarm list
+Troubleshooting Tip: If database creation fails, ensure the Trove service is enabled in your OpenStack cloud.
+
+Conclusion
+In this lab, you have:
+
+Successfully deployed applications using OpenStack Heat orchestration
+Configured autoscaling policies for dynamic resource management
+Deployed a complete multi-tier application with monitoring and scaling capabilities
+Next Steps:
+
+Explore advanced Heat template functions like nested stacks
+Implement custom metrics for scaling decisions
+Integrate with OpenStack Load Balancer (Octavia) for traffic distribution
+Cleanup: Remove all stacks when finished:
+
+openstack stack delete app_stack autoscale_stack basic_stack
+This lab provides hands-on experience with OpenStack's powerful orchestration and scaling capabilities, essential for deploying production-grade cloud-native applications.
