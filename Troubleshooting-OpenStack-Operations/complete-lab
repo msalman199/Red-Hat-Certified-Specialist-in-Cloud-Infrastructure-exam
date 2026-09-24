@@ -1,0 +1,113 @@
+Lab 16: Troubleshooting OpenStack Operations
+Objectives
+By the end of this lab, you will be able to:
+
+Inspect OpenStack service logs to identify error patterns.
+Use OpenStack CLI tools to verify service health.
+Analyze database connections and message queues for potential failures.
+Prerequisites
+A working OpenStack deployment (e.g., DevStack, Red Hat OpenStack Platform).
+Administrative access (sudo/root privileges).
+Basic familiarity with Linux command line and OpenStack components.
+Installed OpenStack CLI tools (openstack, nova, neutron, etc.).
+Access to log files (/var/log/<service>/).
+Task 1: Inspect Service Logs for Error Patterns
+Subtask 1.1: Locate OpenStack Service Logs
+OpenStack services store logs in /var/log/<service>/. Common services include nova, neutron, keystone, and glance.
+
+List available log directories:
+
+ls /var/log | grep -E 'nova|neutron|keystone|glance'
+View logs for a specific service (e.g., Nova):
+
+sudo tail -f /var/log/nova/nova-api.log
+Expected Outcome:
+You should see real-time logs from the nova-api service. Look for ERROR or WARNING entries.
+
+Troubleshooting Tip:
+If logs are not updating, verify the service is running:
+
+sudo systemctl status nova-api
+Subtask 1.2: Filter Logs by Error Severity
+Use grep to filter logs by error level.
+
+Extract ERROR entries from Nova logs:
+
+sudo grep -i "error" /var/log/nova/nova-api.log | less
+Count occurrences of an error:
+
+sudo grep -i "timeout" /var/log/nova/nova-compute.log | wc -l
+Expected Outcome:
+A filtered list of error messages. High counts may indicate persistent issues.
+
+Task 2: Check Service Health Using CLI Tools
+Subtask 2.1: Verify OpenStack Service Status
+Use the openstack CLI to check service health.
+
+List all OpenStack services:
+
+openstack compute service list
+Check Neutron networking agents:
+
+openstack network agent list
+Expected Outcome:
+A table showing service status (up or down). Investigate any down services.
+
+Troubleshooting Tip:
+Restart a failed service:
+
+sudo systemctl restart nova-compute
+Subtask 2.2: Test API Endpoints
+Ensure APIs are responsive.
+
+Check Keystone (identity service) endpoint:
+
+openstack token issue
+Test Glance (image service) API:
+
+openstack image list
+Expected Outcome:
+Successful API responses. Errors may indicate connectivity or authentication issues.
+
+Task 3: Analyze Database and Message Queue Health
+Subtask 3.1: Check Database Connectivity
+OpenStack uses MariaDB/MySQL. Verify connections.
+
+Log in to the database:
+
+sudo mysql -u root -p
+List OpenStack databases:
+
+SHOW DATABASES LIKE '%nova%';
+Expected Outcome:
+A list of OpenStack databases (e.g., nova, keystone). Connection failures suggest database issues.
+
+Subtask 3.2: Inspect RabbitMQ Message Queues
+OpenStack uses RabbitMQ for messaging.
+
+List RabbitMQ nodes:
+
+sudo rabbitmqctl cluster_status
+Check queue health:
+
+sudo rabbitmqctl list_queues
+Expected Outcome:
+Active queues with pending messages. Stale queues may indicate service stalls.
+
+Troubleshooting Tip:
+Purge stuck queues:
+
+sudo rabbitmqctl purge_queue <queue_name>
+Conclusion
+In this lab, you:
+
+Identified errors in OpenStack logs using grep and log inspection.
+Verified service health via OpenStack CLI commands.
+Diagnosed database and message queue issues affecting operations.
+Next Steps:
+
+Document recurring errors for root-cause analysis.
+Refer to OpenStack upstream documentation for specific error resolutions.
+Additional Resources
+OpenStack Logging Guide
+RabbitMQ Troubleshooting
