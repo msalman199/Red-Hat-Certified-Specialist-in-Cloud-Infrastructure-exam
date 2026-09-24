@@ -1,0 +1,104 @@
+Video
+Lab Material
+Lab 18: Integrate Ansible for Configuration Management in OpenStack
+Objectives
+Automate configuration management of OpenStack instances using Ansible
+Implement automated patching and updates for OpenStack services
+Deploy applications and configure instances using Ansible playbooks
+Prerequisites
+OpenStack environment with admin credentials
+Minimum 2 Linux instances (Ubuntu 22.04/CentOS 8) in OpenStack
+SSH access to instances
+Python 3.8+ installed on control node
+Basic understanding of YAML syntax
+Setup Requirements
+Control node (Ansible host) with:
+2 vCPUs, 4GB RAM, 20GB storage
+Target nodes (OpenStack instances):
+1 for OpenStack services (controller)
+1 for application deployment (compute)
+Task 1: Set Up Ansible for OpenStack Configuration
+1.1 Install Ansible on Control Node
+sudo apt update
+sudo apt install -y ansible python3-pip
+pip3 install openstacksdk
+Verification:
+
+ansible --version
+Expected Output:
+
+ansible [core 2.12.0]
+1.2 Configure Ansible Inventory
+Create /etc/ansible/hosts:
+
+[openstack_services]
+controller ansible_host=192.168.1.10
+
+[application_nodes]
+compute1 ansible_host=192.168.1.20
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/openstack_key.pem
+Troubleshooting Tip:
+If SSH connection fails, verify:
+
+Key permissions (chmod 600 ~/.ssh/openstack_key.pem)
+Security group rules in OpenStack
+Task 2: Automate Patching and Updates
+2.1 Create Patching Playbook
+Create patch_update.yml: `yaml
+name: Update OpenStack services hosts: openstack_services become: yes tasks:
+name: Update all packages apt: update_cache: yes upgrade: dist when: ansible_os_family == 'Debian'
+
+name: Reboot if required reboot: msg: "Reboot initiated by Ansible" connect_timeout: 5 reboot_timeout: 600 pre_reboot_delay: 0 post_reboot_delay: 30
+
+
+### **2.2 Execute Playbook**
+```bash
+ansible-playbook patch_update.yml
+Expected Outcome:
+All packages updated on controller node with automatic reboot if kernel updated
+
+Task 3: Instance Setup & Application Deployment
+3.1 Create Instance Configuration Playbook
+Create instance_setup.yml: `yaml
+name: Configure application node hosts: application_nodes become: yes vars: app_user: demoapp tasks:
+name: Create application user user: name: "{{ app_user }}" groups: sudo append: yes
+
+name: Install Nginx apt: name: nginx state: present when: ansible_os_family == 'Debian'
+
+name: Start Nginx service service: name: nginx state: started enabled: yes
+
+
+### **3.2 Deploy Sample Application**
+Add to `instance_setup.yml`:
+```yaml
+    - name: Deploy sample index.html
+      copy:
+        content: "<h1>Ansible-Managed OpenStack App</h1>"
+        dest: /var/www/html/index.html
+        owner: "{{ app_user }}"
+        mode: '0644'
+3.3 Run Deployment
+ansible-playbook instance_setup.yml
+Verification:
+
+curl http://<compute_node_ip>
+Expected Output:
+<h1>Ansible-Managed OpenStack App</h1>
+
+Conclusion
+Successfully implemented Ansible for OpenStack configuration management
+Automated system patching across OpenStack nodes
+Deployed and configured applications using infrastructure-as-code approach
+Next Steps
+Explore Ansible roles for complex OpenStack deployments
+Implement Ansible inventories with dynamic OpenStack sources
+Integrate with CI/CD pipelines for automated testing
+Troubleshooting Guide
+Issue	Solution
+SSH connection refused	Verify security groups and network ACLs
+Package installation fails	Check repository configuration on target nodes
+Permission denied	Ensure proper sudo privileges in playbooks
