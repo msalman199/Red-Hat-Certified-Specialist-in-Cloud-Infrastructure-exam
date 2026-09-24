@@ -1,0 +1,95 @@
+Lab 19 - Network Troubleshooting in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Inspect OpenStack network namespaces and port bindings
+Capture and analyze network traffic using tcpdump/Wireshark
+Troubleshoot common networking issues including:
+Security group misconfigurations
+IP address conflicts
+Neutron agent failures
+Prerequisites
+OpenStack cloud deployment (DevStack or production)
+SSH access to controller and compute nodes
+OpenStack CLI tools installed (python-openstackclient)
+Basic Linux networking knowledge
+tcpdump and iproute2 packages installed
+Wireshark (optional for GUI analysis)
+Task 1: Inspect Network Namespaces and Port Bindings
+1.1 List All Network Namespaces
+sudo ip netns list
+Expected Output:
+Lists all network namespaces (qrouter-, qdhcp-, etc.)
+
+Troubleshooting Tip:
+If no namespaces appear, ensure neutron services are running:
+
+sudo systemctl status neutron-*
+1.2 Inspect Specific Namespace
+sudo ip netns exec qrouter-<UUID> ip a
+Replace <UUID> with actual router ID from openstack router list
+
+Key Concept:
+Each router/DHCP service runs in its own network namespace
+
+1.3 Check Port Bindings
+openstack port list --network <NETWORK_ID>
+openstack port show <PORT_ID>
+Expected Outcome:
+Verify binding:vif_type and status fields are correct values
+
+Task 2: Capture Network Traffic
+2.1 Identify Tap Interfaces
+ip link show | grep tap
+brctl show
+2.2 Capture Traffic with tcpdump
+sudo tcpdump -i tap<ID> -w /tmp/openstack_traffic.pcap
+Pro Tip:
+Filter specific traffic with:
+
+sudo tcpdump -i tap<ID> 'port 67 or port 68' -w dhcp.pcap  # DHCP traffic
+2.3 Analyze in Wireshark (Optional)
+wireshark /tmp/openstack_traffic.pcap
+Key Analysis Points:
+
+ARP requests/responses
+DHCP handshakes
+ICMP unreachable messages
+Task 3: Troubleshoot Common Issues
+3.1 Security Group Misconfigurations
+openstack security group list
+openstack security group rule list <SG_ID>
+Verification Test:
+
+openstack server add security group <INSTANCE> <SG>
+3.2 Detect IP Conflicts
+sudo ip netns exec qdhcp-<UUID> arping -c 3 <IP_ADDRESS>
+Expected Outcome:
+Single response = valid, multiple responses = conflict
+
+3.3 Check Neutron Agents
+openstack network agent list
+Healthy State:
+Alive = True, State = UP
+
+Restart Failed Agents:
+
+sudo systemctl restart neutron-l3-agent
+Conclusion
+In this lab you have:
+
+Examined OpenStack network namespaces and port bindings
+Captured and analyzed network traffic at the virtualization layer
+Diagnosed three common network issues in OpenStack environments
+Final Verification:
+
+openstack network test create --name test-net
+openstack server create --image cirros --flavor m1.tiny --network test-net test-vm
+Next Steps:
+
+Explore neutron logs (/var/log/neutron/) for deeper diagnostics
+Practice troubleshooting with intentionally broken scenarios
+Additional Resources
+OpenStack Networking Guide
+tcpdump Man Page
+Wireshark Display Filters
