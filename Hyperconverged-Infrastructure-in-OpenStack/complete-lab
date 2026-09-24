@@ -1,0 +1,138 @@
+Lab 14: Hyperconverged Infrastructure in OpenStack
+Objectives
+By the end of this lab, you will be able to:
+
+Deploy and manage hyperconverged infrastructure (HCI) in OpenStack by combining compute and storage resources on the same nodes.
+Monitor performance and optimize resource allocation in an HCI environment.
+Troubleshoot common issues in hyperconverged OpenStack deployments.
+Prerequisites
+A working OpenStack environment (e.g., deployed via OpenStack-Ansible, Kolla-Ansible, or MicroStack).
+SSH access to OpenStack controller and compute nodes.
+Basic familiarity with OpenStack CLI (openstack, nova, cinder commands).
+Admin privileges for OpenStack services.
+Software Requirements:
+OpenStack (Queens or later)
+Ceph (for distributed storage)
+Prometheus + Grafana (for monitoring)
+Lab Setup
+Environment Verification
+Ensure all nodes (controller and compute) are reachable and OpenStack services are running:
+
+openstack compute service list
+openstack volume service list
+Install Ceph on Compute Nodes
+Hyperconverged infrastructure requires shared storage. We'll use Ceph for distributed block storage.
+
+On each compute node, install Ceph packages:
+
+sudo apt-get update
+sudo apt-get install -y ceph-mon ceph-osd ceph-mgr ceph-common
+Task 1: Configure Compute and Storage on the Same Nodes
+Subtask 1.1: Configure Ceph for Hyperconverged Storage
+Initialize Ceph Cluster
+On the first compute node, generate a Ceph configuration:
+
+sudo ceph-deploy new <compute-node-1>
+Deploy Ceph Monitors and OSDs
+Deploy Ceph monitors and object storage daemons (OSDs) on all compute nodes:
+
+sudo ceph-deploy mon create-initial
+sudo ceph-deploy osd create --data /dev/sdb <compute-node-1> <compute-node-2>
+Verify Ceph Health
+Ensure Ceph cluster is healthy:
+
+sudo ceph -s
+Expected Output: HEALTH_OK
+
+Subtask 1.2: Integrate Ceph with OpenStack
+Configure Cinder for Ceph Backend
+Edit /etc/cinder/cinder.conf on the controller:
+
+[DEFAULT]
+enabled_backends = ceph
+
+[ceph]
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+rbd_pool = volumes
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_flatten_volume_from_snapshot = false
+rbd_max_clone_depth = 5
+rbd_store_chunk_size = 4
+rados_connect_timeout = -1
+Restart Cinder Services
+
+sudo systemctl restart cinder-volume
+Verify Integration
+Create a test volume:
+
+openstack volume create --size 1 test_volume
+openstack volume list
+Expected Outcome: Volume status should be available.
+
+Task 2: Monitor Performance and Optimize Resources
+Subtask 2.1: Deploy Monitoring Stack
+Install Prometheus and Grafana
+On the controller node:
+
+sudo apt-get install -y prometheus grafana
+Configure Prometheus to Scrape Ceph and Nova Metrics
+Edit /etc/prometheus/prometheus.yml:
+
+scrape_configs:
+  - job_name: 'ceph'
+    static_configs:
+      - targets: ['<compute-node-1>:9283', '<compute-node-2>:9283']
+  - job_name: 'nova'
+    static_configs:
+      - targets: ['<controller>:8778']
+Start Services
+
+sudo systemctl restart prometheus
+sudo systemctl start grafana-server
+Subtask 2.2: Optimize Resource Allocation
+Check Compute Node Utilization
+
+openstack hypervisor stats show
+Adjust Overcommit Ratios
+Edit /etc/nova/nova.conf:
+
+[DEFAULT]
+cpu_allocation_ratio = 4.0
+ram_allocation_ratio = 1.5
+Restart Nova Services
+
+sudo systemctl restart nova-compute
+Task 3: Troubleshoot Common HCI Issues
+Subtask 3.1: Diagnose Storage Issues
+Check Ceph Cluster Health
+
+sudo ceph health detail
+Verify Volume Attachments
+
+openstack volume list --status error
+Subtask 3.2: Resolve Performance Bottlenecks
+Check Disk I/O
+
+sudo iostat -x 1
+Adjust Ceph OSD Settings
+Edit /etc/ceph/ceph.conf:
+
+[osd]
+osd_memory_target = 4294967296  # 4GB
+Conclusion
+In this lab, you:
+
+Deployed a hyperconverged OpenStack environment by integrating compute and Ceph storage.
+Monitored performance using Prometheus and Grafana.
+Troubleshot common HCI issues.
+Next Steps:
+
+Explore dynamic scaling of Ceph OSDs.
+Implement high availability for hyperconverged nodes.
+Troubleshooting Tips
+If Ceph -s shows HEALTH_WARN, check network connectivity between nodes.
+If volumes fail to create, verify cinder-volume logs:
+journalctl -u cinder-volume
+References
+OpenStack HCI Guide
+Ceph Documentation
