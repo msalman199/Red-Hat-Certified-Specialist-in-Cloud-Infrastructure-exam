@@ -1,0 +1,112 @@
+Lab 10: Red Hat Ceph Storage Integration with OpenStack
+Lab Objectives
+By the end of this lab, you will be able to:
+
+Install and configure Red Hat Ceph Storage (RHCS).
+Integrate Ceph RADOS Block Device (RBD) with OpenStack Cinder for block storage.
+Configure and manage storage policies in OpenStack.
+Prerequisites
+Before starting this lab, ensure you have:
+
+A running Red Hat Enterprise Linux (RHEL) 8/9 system with root/sudo access.
+A deployed OpenStack environment (Minimal: Controller + Compute + Cinder).
+Network connectivity between OpenStack nodes and Ceph cluster.
+Basic familiarity with Ceph, OpenStack, and Linux CLI.
+Lab Tasks
+Task 1: Install and Configure Red Hat Ceph Storage
+Subtask 1.1: Set Up Ceph Cluster
+Install Ceph packages on the Ceph nodes (monitor, OSD, and manager):
+
+sudo dnf install -y ceph-common ceph-mon ceph-osd ceph-mgr
+Initialize the Ceph cluster (run on the first monitor node):
+
+sudo ceph-deploy new <monitor-node-hostname>
+Install Ceph on all nodes:
+
+sudo ceph-deploy install <node1> <node2> <node3>
+Deploy initial monitors and gather keys:
+
+sudo ceph-deploy mon create-initial
+sudo ceph-deploy admin <admin-node>
+Expected Outcome:
+
+A basic Ceph cluster is deployed with monitor and OSDs.
+Verify with:
+sudo ceph -s
+Subtask 1.2: Create a Ceph Pool for OpenStack
+Create a replicated pool for Cinder volumes:
+
+sudo ceph osd pool create volumes 128
+sudo ceph osd pool create vms 128
+Enable RBD on the pools:
+
+sudo rbd pool init volumes
+sudo rbd pool init vms
+Expected Outcome:
+
+Two Ceph pools (volumes and vms) are created and ready for OpenStack integration.
+Task 2: Integrate Ceph RBD with OpenStack Cinder
+Subtask 2.1: Configure Ceph Client Authentication
+Create a Ceph client for Cinder:
+
+sudo ceph auth get-or-create client.cinder mon 'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=volumes, allow rwx pool=vms'
+Copy the keyring to the OpenStack controller:
+
+sudo scp /etc/ceph/ceph.client.cinder.keyring <openstack-controller>:/etc/ceph/
+Subtask 2.2: Configure Cinder to Use Ceph RBD
+Edit /etc/cinder/cinder.conf on the OpenStack controller:
+
+[DEFAULT]
+enabled_backends = ceph
+
+[ceph]
+volume_driver = cinder.volume.drivers.rbd.RBDDriver
+rbd_pool = volumes
+rbd_ceph_conf = /etc/ceph/ceph.conf
+rbd_flatten_volume_from_snapshot = true
+rbd_max_clone_depth = 5
+rbd_store_chunk_size = 4
+rados_connect_timeout = -1
+rbd_user = cinder
+rbd_secret_uuid = <generated-uuid>
+Restart Cinder services:
+
+sudo systemctl restart openstack-cinder-volume
+sudo systemctl restart openstack-cinder-api
+Expected Outcome:
+
+Cinder is now configured to use Ceph RBD as a backend.
+Verify with:
+openstack volume service list
+Task 3: Configure and Manage Storage Policies
+Subtask 3.1: Create a Ceph-Backed Storage Policy
+Define a new volume type:
+
+openstack volume type create ceph-rbd
+Set extra specs for Ceph backend:
+
+openstack volume type set --property volume_backend_name=ceph ceph-rbd
+Subtask 3.2: Test Volume Creation
+Create a volume using the Ceph policy:
+
+openstack volume create --size 10 --type ceph-rbd test-ceph-volume
+Verify volume status:
+
+openstack volume show test-ceph-volume
+Expected Outcome:
+
+A new Ceph-backed volume is successfully created and listed in OpenStack.
+Conclusion
+In this lab, you:
+✔ Installed and configured Red Hat Ceph Storage (RHCS).
+✔ Integrated Ceph RBD with OpenStack Cinder for block storage.
+✔ Created and managed storage policies for Ceph-backed volumes.
+
+Next Steps:
+
+Explore Ceph-cluster scaling (adding more OSDs).
+Implement CephFS for shared file storage in OpenStack.
+Troubleshooting Tips
+Ceph health warnings? Check OSD status with ceph osd stat.
+Cinder volume creation fails? Verify /etc/ceph/ceph.client.cinder.keyring permissions.
+OpenStack-Ceph connectivity issues? Ensure firewall rules allow TCP/6789 (Ceph Monitors).
