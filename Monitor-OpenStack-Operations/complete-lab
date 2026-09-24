@@ -1,0 +1,188 @@
+1h 47m
+
+Time Spent Today:
+1h 13m
+
+Start Lab
+✅ Connected
+Delete Lab
+SSH Access
+
+Video
+Lab Material
+Lab 15 - Monitor OpenStack Operations
+Objectives
+To monitor the operations and health of OpenStack components using open-source tools
+To implement telemetry with Ceilometer, Gnocchi, and Monasca
+To set up centralized logging with Elasticsearch-Fluentd-Kibana (EFK) stack
+To configure Grafana for visualization and alerting
+Prerequisites
+OpenStack environment (minimum: Stein release)
+Ubuntu 20.04 LTS or CentOS 8 nodes
+sudo/root access to all nodes
+Minimum hardware: 4 vCPUs, 8GB RAM, 50GB disk per node
+Basic familiarity with Linux CLI and OpenStack concepts
+Task 1: Set Up Ceilometer and Gnocchi for Telemetry
+**Subtask 1.1: Install Ceilometer Components
+# On controller node
+sudo apt-get install ceilometer-api ceilometer-collector \
+ceilometer-agent-central ceilometer-agent-notification \
+python3-ceilometerclient
+Subtask 1.2: Configure Ceilometer
+# Edit the configuration file
+sudo vi /etc/ceilometer/ceilometer.conf
+
+# In the [DEFAULT] section add:
+transport_url = rabbit://openstack:RABBIT_PASS@controller
+auth_strategy = keystone
+
+# In the [service_credentials] section:
+auth_type = password
+auth_url = http://controller:5000/v3
+username = ceilometer
+password = CEILOMETER_PASS
+project_name = service
+user_domain_name = Default
+project_domain_name = Default
+Subtask 1.3: Install and Configure Gnocchi
+sudo apt-get install gnocchi-api gnocchi-metricd python3-gnocchiclient
+
+# Configure Gnocchi
+sudo vi /etc/gnocchi/gnocchi.conf
+
+# Add these configurations:
+[storage]
+driver = file
+file_basepath = /var/lib/gnocchi
+
+[indexer]
+url = mysql+pymysql://gnocchi:GNOCCHI_DBPASS@controller/gnocchi
+Subtask 1.4: Start Services
+sudo systemctl enable --now ceilometer-agent-central
+sudo systemctl enable --now ceilometer-agent-notification
+sudo systemctl enable --now ceilometer-api
+sudo systemctl enable --now gnocchi-api
+sudo systemctl enable --now gnocchi-metricd
+Expected Outcome:
+
+Ceilometer services running and collecting metrics
+Gnocchi storing time-series data
+Verify with openstack metric list
+Task 2: Set Up Monasca for Advanced Monitoring
+Subtask 2.1: Install Monasca Components
+sudo apt-get install monasca-api monasca-notification \
+monasca-persister monasca-agent
+Subtask 2.2: Configure Monasca
+sudo vi /etc/monasca/monasca-api.conf
+
+# Add database configuration:
+[database]
+engine = mysql
+host = controller
+name = monasca
+user = monasca
+passwd = MONASCA_DBPASS
+Subtask 2.3: Initialize Database
+mysql -u root -p
+CREATE DATABASE monasca;
+GRANT ALL PRIVILEGES ON monasca.* TO 'monasca'@'%' IDENTIFIED BY 'MONASCA_DBPASS';
+FLUSH PRIVILEGES;
+exit
+Expected Outcome:
+
+Monasca services operational
+Verify with curl http://controller:8070/v2.0
+Task 3: Implement EFK Stack for Logging
+Subtask 3.1: Install Elasticsearch
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update && sudo apt install elasticsearch
+
+# Configure Elasticsearch
+sudo vi /etc/elasticsearch/elasticsearch.yml
+cluster.name: openstack-logging
+network.host: 0.0.0.0
+Subtask 3.2: Install Fluentd
+curl -L https://toolbelt.treasuredata.com/sh/install-ubuntu-focal-td-agent4.sh | sh
+sudo /usr/sbin/td-agent-gem install fluent-plugin-elasticsearch
+Subtask 3.3: Configure Fluentd
+sudo vi /etc/td-agent/td-agent.conf
+
+# Add this configuration:
+<source>
+  @type tail
+  path /var/log/nova/*.log
+  pos_file /var/log/td-agent/nova.log.pos
+  tag openstack.nova
+  <parse>
+    @type none
+  </parse>
+</source>
+
+<match openstack.**>
+  @type elasticsearch
+  host controller
+  port 9200
+  logstash_format true
+</match>
+Subtask 3.4: Install Kibana
+sudo apt install kibana
+sudo vi /etc/kibana/kibana.yml
+
+# Set these parameters:
+server.host: "0.0.0.0"
+elasticsearch.hosts: ["http://controller:9200"]
+Expected Outcome:
+
+Logs visible in Kibana dashboard at http://controller:5601
+Elasticsearch indices created for OpenStack services
+Task 4: Configure Grafana for Visualization
+Subtask 4.1: Install Grafana
+sudo apt-get install -y apt-transport-https
+sudo apt-get install -y software-properties-common wget
+wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
+echo "deb https://packages.grafana.com/oss/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list
+sudo apt-get update
+sudo apt-get install grafana
+Subtask 4.2: Configure Data Sources
+# Access Grafana at http://controller:3000
+# Add data sources:
+1. Gnocchi (http://controller:8041)
+2. Monasca (http://controller:8070/v2.0)
+3. Elasticsearch (http://controller:9200)
+Subtask 4.3: Import Dashboards
+# Download OpenStack dashboard templates
+wget https://grafana.com/api/dashboards/11052/revisions/1/download -O openstack-gnocchi.json
+wget https://grafana.com/api/dashboards/11053/revisions/1/download -O openstack-monasca.json
+
+# Import through Grafana UI
+Expected Outcome:
+
+Operational Grafana with OpenStack dashboards
+Visualizations of metrics and logs
+Troubleshooting Tips
+Ceilometer not collecting data:
+
+Verify RabbitMQ connection sudo rabbitmqctl list_connections
+Check service logs journalctl -u ceilometer-*
+Elasticsearch not starting:
+
+Check Java version java -version (requires Java 11+)
+Verify heap size in /etc/elasticsearch/jvm.options
+Grafana authentication issues:
+
+Reset admin password grafana-cli admin reset-admin-password newpassword
+Conclusion
+In this lab, you have successfully:
+
+Implemented OpenStack telemetry with Ceilometer and Gnocchi
+Deployed Monasca for advanced monitoring capabilities
+Established centralized logging with EFK stack
+Configured Grafana for comprehensive visualization
+These monitoring solutions provide real-time insights into your OpenStack environment, enabling proactive management and quick issue resolution. The open-source tools used ensure vendor-neutral, extensible monitoring capabilities.
+
+Verification Steps:
+
+Check all services are active: systemctl list-units --type=service | grep -E 'ceilometer|gnocchi|monasca|elastic|grafana'
+Access Kibana at http://<controller-ip>:5601
+Access Grafana at http://<controller-ip>:3000 (default credentials admin/admin)
