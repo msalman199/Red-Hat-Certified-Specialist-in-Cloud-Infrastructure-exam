@@ -1,0 +1,136 @@
+Lab 9: Flavors and Metadata Services
+Objectives
+By the end of this lab, you will be able to:
+
+Define custom flavors (instance types) for different workloads.
+Configure metadata services to inject SSH keys and network settings into instances.
+Launch instances using custom flavors and metadata.
+Prerequisites
+A working OpenStack environment (DevStack or a cloud provider with OpenStack API access).
+OpenStack CLI (OpenStackClient) installed and configured.
+Basic knowledge of Linux command line and YAML/JSON syntax.
+Access to a project with admin or member privileges.
+Task 1: Define Custom Flavors for Different Workloads
+Subtask 1.1: List Existing Flavors
+Before creating custom flavors, check the available flavors in your OpenStack environment.
+
+openstack flavor list
+Expected Output:
+A table showing default flavors (e.g., m1.tiny, m1.small).
+
+Subtask 1.2: Create a Custom Flavor
+Define a new flavor optimized for high-CPU workloads (e.g., compute-heavy).
+
+openstack flavor create \
+  --vcpus 4 \
+  --ram 8192 \
+  --disk 20 \
+  --public \
+  compute-heavy
+Explanation:
+
+--vcpus: Number of virtual CPUs.
+--ram: Memory in MB.
+--disk: Root disk size in GB.
+--public: Makes the flavor available to all projects.
+Expected Output:
+A new flavor named compute-heavy appears in openstack flavor list.
+
+Subtask 1.3: Verify Flavor Creation
+openstack flavor show compute-heavy
+Expected Output:
+Detailed specifications of the compute-heavy flavor.
+
+Task 2: Configure Metadata Services for Instance Configuration
+Subtask 2.1: Generate an SSH Key Pair
+Metadata services allow injecting SSH keys into instances. First, generate a key pair.
+
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/openstack_lab_key
+Explanation:
+
+-t rsa: Uses RSA encryption.
+-b 4096: Key length (stronger security).
+-f: Saves the key to ~/.ssh/openstack_lab_key.
+Expected Output:
+Two files created:
+
+openstack_lab_key (private key)
+openstack_lab_key.pub (public key)
+Subtask 2.2: Add SSH Key to OpenStack
+Upload the public key to OpenStack for metadata injection.
+
+openstack keypair create \
+  --public-key ~/.ssh/openstack_lab_key.pub \
+  lab_keypair
+Expected Output:
+A new keypair lab_keypair appears in openstack keypair list.
+
+Subtask 2.3: Create Metadata Configuration (User Data)
+Metadata can also pass cloud-init configurations (e.g., user setup, packages).
+
+Create a file user-data.yaml:
+
+#cloud-config  
+users:  
+  - name: labuser  
+    ssh-authorized-keys:  
+      - ssh-rsa AAAAB3NzaC1yc2E... (paste your public key here)  
+    sudo: wheel  
+    shell: /bin/bash  
+Explanation:
+
+Defines a user labuser with sudo access.
+Injects the SSH key for remote access.
+Task 3: Launch Instances Using Custom Flavors and Metadata
+Subtask 3.1: Launch an Instance with Custom Flavor
+Use the compute-heavy flavor and inject metadata.
+
+openstack server create \
+  --flavor compute-heavy \
+  --image cirros \
+  --key-name lab_keypair \
+  --user-data user-data.yaml \
+  my-custom-instance
+Explanation:
+
+--flavor: Uses compute-heavy.
+--image: Uses cirros (lightweight test image).
+--key-name: Injects the SSH key.
+--user-data: Applies cloud-init config.
+Expected Output:
+A new instance my-custom-instance is created.
+
+Subtask 3.2: Verify Instance Metadata
+Check if metadata was applied correctly.
+
+openstack server show my-custom-instance -c key_name -c user_data
+Expected Output:
+Confirms lab_keypair and user-data.yaml were applied.
+
+Subtask 3.3: Access the Instance via SSH
+Use the private key to log in.
+
+chmod 600 ~/.ssh/openstack_lab_key  
+ssh -i ~/.ssh/openstack_lab_key labuser@<instance-ip>
+Expected Output:
+Successful login as labuser.
+
+Conclusion
+In this lab, you:
+✔ Created custom flavors for specialized workloads.
+✔ Configured metadata services to inject SSH keys and user data.
+✔ Launched an instance with custom configurations.
+
+These skills are essential for OpenStack administrators and align with Red Hat OpenShift Development I concepts.
+
+Troubleshooting Tips
+If SSH fails, check:
+Security group rules (allow port 22).
+Correct key pair assignment (openstack server show).
+If metadata isn’t applied, verify:
+Correct YAML syntax in user-data.yaml.
+Instance supports cloud-init`.
+Next Steps:
+
+Explore advanced metadata (network config, scripts).
+Automate deployments using Heat Orchestration.
