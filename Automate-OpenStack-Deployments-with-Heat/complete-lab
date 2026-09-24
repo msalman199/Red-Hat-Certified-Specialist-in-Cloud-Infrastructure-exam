@@ -1,0 +1,108 @@
+Lab 17: Automate OpenStack Deployments with Heat
+Objectives
+By the end of this lab, you will be able to:
+
+Automate multi-tier cloud application deployments using Heat Orchestration Templates (HOT)
+Deploy applications with inter-service dependencies using Heat
+Implement autoscaling policies for dynamic resource management
+Prerequisites
+Access to an OpenStack cloud environment with Heat service enabled
+OpenStack CLI tools installed (openstack, heat)
+Basic understanding of YAML syntax
+Familiarity with OpenStack core services (Nova, Neutron, Cinder)
+Lab Setup
+Environment Verification:
+
+# Verify Heat service is available
+openstack orchestration service list
+Expected Output: List of Heat engine services with "up" status.
+
+Install Heat Client (if not present):
+
+pip install python-heatclient
+Task 1: Create Multi-Tier Application Template
+Subtask 1.1: Design Template Structure
+Create multi-tier-app.yaml with:
+
+heat_template_version: 2018-08-31
+description: Multi-tier web application with database
+Subtask 1.2: Define Resources
+Add frontend and backend resources:
+
+resources:
+  frontend_server:
+    type: OS::Nova::Server
+    properties:
+      image: cirros
+      flavor: m1.small
+      networks:
+        - network: private
+
+  database_server:
+    type: OS::Nova::Server
+    properties:
+      image: cirros
+      flavor: m1.medium
+      networks:
+        - network: private
+Subtask 1.3: Add Dependencies
+  frontend_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: public
+    depends_on: frontend_server
+Key Concept: depends_on ensures proper deployment order.
+
+Task 2: Deploy Application Stack
+Subtask 2.1: Validate Template
+openstack orchestration template validate -t heat -f multi-tier-app.yaml
+Troubleshooting: Fix any YAML syntax errors if validation fails.
+
+Subtask 2.2: Launch Stack
+openstack stack create -t multi-tier-app.yaml --wait app-stack
+Subtask 2.3: Verify Deployment
+openstack stack list
+openstack server list
+Expected Outcome: Stack in CREATE_COMPLETE state with two running instances.
+
+Task 3: Implement Autoscaling
+Subtask 3.1: Create Scaling Policy
+Add to multi-tier-app.yaml:
+
+  scaling_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      scaling_adjustment: 1
+      cooldown: 60
+      resource: frontend_group
+Subtask 3.2: Define Scaling Group
+  frontend_group:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 1
+      max_size: 3
+      resource:
+        type: OS::Nova::Server
+        properties:
+          # Same as frontend_server properties
+Subtask 3.3: Trigger Scaling
+# Manually trigger scaling (simulate alarm)
+openstack stack update --existing -t multi-tier-app.yaml app-stack
+Monitoring: Use openstack stack resource list app-stack to watch scaling.
+
+Conclusion
+In this lab you have:
+
+Created a Heat Orchestration Template for multi-tier applications
+Deployed interdependent cloud resources with proper sequencing
+Implemented auto-scaling policies for dynamic workloads
+Verification:
+
+openstack stack output show app-stack all
+Cleanup:
+
+openstack stack delete app-stack
+Additional Resources
+OpenStack HOT Guide
+Heat CLI Reference
