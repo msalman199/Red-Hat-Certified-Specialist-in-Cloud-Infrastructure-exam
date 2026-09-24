@@ -1,0 +1,125 @@
+Lab 12: Configuring Advanced Neutron Networking
+Objectives
+Configure VPN as a Service (VPNaaS) in OpenStack Neutron
+Implement VXLAN and GRE tunneling for network isolation
+Configure security groups and DHCP for tenant networks
+Understand advanced Neutron networking concepts in OpenStack
+Prerequisites
+OpenStack environment with Neutron installed (Queens or later)
+Administrative access to the OpenStack CLI
+Basic understanding of OpenStack networking concepts
+Installed packages: python-neutronclient, openvpn
+Two tenant networks pre-configured for testing
+Task 1: Set Up VPN as a Service (VPNaaS)
+1.1 Install VPNaaS Components
+# On the controller node
+sudo apt-get install neutron-vpnaas neutron-l3-agent
+sudo service neutron-server restart
+Explanation:
+VPNaaS requires the Neutron VPN agent and L3 agent for routing. The package provides IPSec VPN functionality.
+
+1.2 Configure VPN Service
+# Enable VPNaaS in neutron.conf
+sudo crudini --set /etc/neutron/neutron.conf service_providers service_provider VPN:openswan:neutron.services.vpn.service_drivers.ipsec.IPsecVPNDriver:default
+
+# Restart services
+sudo systemctl restart neutron-server
+Expected Outcome:
+VPN service is now enabled in Neutron. Verify with:
+
+openstack network service provider list | grep VPN
+1.3 Create VPN Configuration
+# Create IKE policy
+openstack vpn ike policy create ikepolicy1 \
+    --auth-algorithm sha1 \
+    --encryption-algorithm aes-256 \
+    --phase1-negotiation-mode main \
+    --ike-version v1 \
+    --pfs group5 \
+    --lifetime units=seconds,value=3600
+
+# Create IPSec policy
+openstack vpn ipsec policy create ipsecpolicy1 \
+    --auth-algorithm sha1 \
+    --encryption-algorithm aes-256 \
+    --encapsulation-mode tunnel \
+    --transform-protocol esp \
+    --pfs group5 \
+    --lifetime units=seconds,value=3600
+Troubleshooting Tip:
+If policies fail, check /var/log/neutron/neutron-vpn-agent.log for errors.
+
+Task 2: Implement VXLAN and GRE for Network Isolation
+2.1 Configure VXLAN
+# Edit neutron.conf
+sudo crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 type_drivers "local,flat,vlan,gre,vxlan"
+sudo crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types vxlan
+sudo crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini vxlan vni_ranges 1000:2000
+
+# Restart services
+sudo systemctl restart neutron-server
+Key Concept:
+VXLAN provides Layer 2 isolation using 24-bit VNI identifiers, enabling larger scale networks.
+
+2.2 Create VXLAN Network
+openstack network create vxlan-net --provider-network-type vxlan
+openstack subnet create vxlan-subnet --network vxlan-net --subnet-range 192.168.100.0/24
+2.3 Configure GRE (Alternative to VXLAN)
+# Edit ml2_conf.ini
+sudo crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types gre
+sudo crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini gre tunnel_id_ranges 1:1000
+
+# Restart services
+sudo systemctl restart neutron-server
+Comparison:
+GRE uses simpler encapsulation but lacks VXLAN's scalability features.
+
+Task 3: Configure Security Groups and DHCP
+3.1 Create Custom Security Group
+openstack security group create web-access --description "Allow HTTP/HTTPS"
+openstack security group rule create --protocol tcp --dst-port 80:80 web-access
+openstack security group rule create --protocol tcp --dst-port 443:443 web-access
+3.2 Configure DHCP Agent
+# Edit dhcp_agent.ini
+sudo crudini --set /etc/neutron/dhcp_agent.ini DEFAULT interface_driver linuxbridge
+sudo crudini --set /etc/neutron/dhcp_agent.ini DEFAULT enable_isolated_metadata true
+
+# Restart agent
+sudo systemctl restart neutron-dhcp-agent
+3.3 Verify DHCP Functionality
+# Create test instance
+openstack server create --image cirros --flavor m1.tiny --network vxlan-net test-vm
+
+# Check DHCP lease
+neutron port-list --device-id $(openstack server show test-vm -c id -f value)
+Expected Outcome:
+The instance should receive an IP from the 192.168.100.0/24 range.
+
+Conclusion
+In this lab, you have:
+
+Successfully configured VPN as a Service using OpenStack Neutron
+Implemented both VXLAN and GRE tunneling for network isolation
+Configured security groups and verified DHCP functionality
+Verification Steps:
+
+# Verify all services
+openstack network agent list
+openstack vpn service list
+openstack security group list
+Next Steps:
+Explore advanced topics like:
+
+Neutron QoS policies
+BGP dynamic routing with Neutron
+Distributed Virtual Routing (DVR)
+Cleanup:
+
+openstack server delete test-vm
+openstack network delete vxlan-net
+openstack security group delete web-access
+Troubleshooting Resources:
+
+Check logs in /var/log/neutron/
+Verify service status: systemctl status neutron-*
+Use neutron-debug tool for diagnostics
