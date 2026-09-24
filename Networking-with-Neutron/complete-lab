@@ -1,0 +1,125 @@
+Lab 11: Networking with Neutron (Basic)
+Objectives
+By the end of this lab, you will be able to:
+
+Configure tenant networks and subnets in OpenStack using Neutron.
+Set up routers for external connectivity.
+Assign floating IPs to instances for external access.
+Prerequisites
+An active OpenStack cloud environment with admin/tenant privileges.
+OpenStack CLI tools installed (python-openstackclient).
+Basic familiarity with Linux command line and OpenStack concepts.
+Task 1: Create Tenant Networks and Subnets
+Subtask 1.1: Create a Private Network
+Command:
+
+openstack network create --internal <NETWORK_NAME>
+Example:
+
+openstack network create --internal lab_network
+--internal: Marks the network as private (non-external).
+Expected Outcome:
+A new private network is created. Note the ID and Name from the output.
+
+Troubleshooting:
+
+If you lack permissions, ensure you’re using the correct project/tenant credentials.
+Verify Neutron services are running (openstack network agent list).
+Subtask 1.2: Create a Subnet
+Command:
+
+openstack subnet create --network <NETWORK_NAME> \
+--subnet-range <CIDR> \
+--dns-nameserver <DNS_IP> <SUBNET_NAME>
+Example:
+
+openstack subnet create --network lab_network \
+--subnet-range 192.168.1.0/24 \
+--dns-nameserver 8.8.8.8 lab_subnet
+Key Concepts:
+
+--subnet-range: CIDR notation for the subnet (e.g., 192.168.1.0/24).
+--dns-nameserver: DNS resolver (e.g., Google’s 8.8.8.8).
+Expected Outcome:
+A subnet is attached to the network. Verify with:
+
+openstack subnet list
+Task 2: Configure Routers for External Connectivity
+Subtask 2.1: Create a Router
+Command:
+
+openstack router create <ROUTER_NAME>
+Example:
+
+openstack router create lab_router
+Expected Outcome:
+A new router is created. Note its ID.
+
+Subtask 2.2: Attach Router to External Network
+Identify the External Network:
+
+openstack network list --external
+Look for a network with router:external=True.
+Attach Router:
+
+openstack router set --external-gateway <EXTERNAL_NETWORK> <ROUTER_NAME>
+Example:
+
+openstack router set --external-gateway public lab_router
+Expected Outcome:
+The router now has external connectivity. Verify with:
+
+openstack router show lab_router
+Subtask 2.3: Connect Router to Private Subnet
+Command:
+
+openstack router add subnet <ROUTER_NAME> <SUBNET_NAME>
+Example:
+
+openstack router add subnet lab_router lab_subnet
+Expected Outcome:
+The private subnet is now routed externally. Check interfaces:
+
+openstack port list --router lab_router
+Task 3: Set Up Floating IPs for External Access
+Subtask 3.1: Allocate a Floating IP
+Command:
+
+openstack floating ip create <EXTERNAL_NETWORK>
+Example:
+
+openstack floating ip create public
+Expected Outcome:
+A floating IP is allocated. Note the IP address from the output.
+
+Subtask 3.2: Assign Floating IP to an Instance
+List Instances:
+
+openstack server list
+Assign IP:
+
+openstack server add floating ip <INSTANCE_NAME> <FLOATING_IP>
+Example:
+
+openstack server add floating ip vm1 203.0.113.10
+Verify Connectivity:
+
+ping <FLOATING_IP>
+Ensure security groups allow ICMP/SSH.
+Conclusion
+In this lab, you:
+
+Created a tenant network and subnet using Neutron.
+Configured a router to bridge private and external networks.
+Assigned floating IPs to enable external access.
+Key Takeaways:
+
+Neutron abstracts network management in OpenStack.
+Routers enable inter-subnet and external traffic.
+Floating IPs provide public accessibility to instances.
+Next Steps
+Advanced Neutron features (LBaaS, VPNaaS).
+Explore security groups and network policies.
+
+---  
+**Note**: Replace placeholders (e.g., `<NETWORK_NAME>`) with actual values in your environment. All commands use OpenStack’s modern CLI (`openstackclient`), avoiding deprecated `neutron` or `nova` commands.
